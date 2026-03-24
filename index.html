@@ -474,6 +474,24 @@
         </div>
     </div>
 
+    <!-- Game Reward Claim Modal -->
+    <div id="game-claim-modal" class="fixed inset-0 z-[100] bg-black/95 hidden flex-col items-center justify-center p-6 text-center backdrop-blur-xl">
+        <div class="glass-card p-8 rounded-3xl border border-yellow-500/30 shadow-2xl flex flex-col items-center max-w-sm w-full relative overflow-hidden">
+            <div class="absolute inset-0 bg-yellow-500/5"></div>
+            <div class="w-20 h-20 bg-yellow-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-yellow-500/40 animate-bounce">
+                <i class="fas fa-gift text-4xl text-yellow-900"></i>
+            </div>
+            <h2 class="text-3xl font-tech font-extrabold text-white mb-2">You Won!</h2>
+            <p class="text-slate-300 text-sm mb-6">Watch a short ad to claim your <span class="text-yellow-400 font-bold">+<span id="game-claim-amt">0</span> Coins</span>.</p>
+            <div class="flex gap-4 w-full">
+                <button onclick="closeGameClaimModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl active:scale-95 transition">Skip (Lose Coins)</button>
+                <button onclick="claimGameRewardWithAd()" class="flex-1 bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-bold py-3 rounded-xl shadow-lg active:scale-95 transition flex justify-center items-center gap-2">
+                    <i class="fas fa-play"></i> Watch Ad
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- SINGLE JAVASCRIPT BLOCK -->
     <script>
         // Updated Firebase Configuration for Tap-to-Earn
@@ -510,6 +528,10 @@
         let multiplierTimer = null;
         let adCallback = null; 
         
+        // Game Reward Variables
+        let pendingGameReward = 0;
+        let pendingGameSource = "";
+
         window.rulesWarned = false;
 
         // Initialize App & Force Strict Auth Flow
@@ -895,8 +917,7 @@
                 document.getElementById('ttt-status').innerText = "You Won!"; 
                 setTimeout(() => { 
                     closeTicTacToe(); 
-                    addCoinsOptimistic(20);
-                    showToast("Tic Tac Toe Win: +20 Coins!", "success"); 
+                    openGameClaimModal(20, "Tic Tac Toe");
                 }, 1000); 
                 return; 
             }
@@ -990,12 +1011,57 @@
         function checkMathAnswer(ans) { 
             if(ans === mathAnswer) { 
                 closeMathSolve(); 
-                addCoinsOptimistic(10);
-                showToast("Math Genius: +10 Coins!", "success"); 
+                openGameClaimModal(10, "Math Solve");
             } else { 
                 showToast("Wrong! Try Again", "error"); 
                 generateMathQuestion(); 
             } 
+        }
+
+        // --- GAME REWARD AD LOGIC ---
+        function openGameClaimModal(amount, source) {
+            pendingGameReward = amount;
+            pendingGameSource = source;
+            document.getElementById('game-claim-amt').innerText = amount;
+            document.getElementById('game-claim-modal').classList.remove('hidden');
+            document.getElementById('game-claim-modal').classList.add('flex');
+        }
+
+        function closeGameClaimModal() {
+            document.getElementById('game-claim-modal').classList.add('hidden');
+            document.getElementById('game-claim-modal').classList.remove('flex');
+            pendingGameReward = 0;
+            pendingGameSource = "";
+        }
+
+        function claimGameRewardWithAd() {
+            closeGameClaimModal();
+            showToast("Loading Ad...", "info");
+            
+            const isTelegramEnv = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData;
+            
+            if (window.Adsgram && isTelegramEnv) {
+                try {
+                    const AdController = window.Adsgram.init({ blockId: "25046" }); 
+                    AdController.show().then(() => {
+                        // Ad watched successfully
+                        addCoinsOptimistic(pendingGameReward);
+                        showToast(`${pendingGameSource} Win: +${pendingGameReward} Coins!`, "success");
+                        pendingGameReward = 0;
+                        pendingGameSource = "";
+                    }).catch(e => {
+                        console.error('Ad Error', e);
+                        showToast("Ad cancelled. Coins not claimed.", "error");
+                    });
+                } catch(err) {
+                    console.error('Adsgram Init Error', err);
+                    showToast("Ad System Error.", "error");
+                }
+            } else {
+                console.log("Browser Mode: Ad skipped, reward granted for testing.");
+                addCoinsOptimistic(pendingGameReward);
+                showToast(`${pendingGameSource} Win: +${pendingGameReward} Coins! (Test Mode)`, "success");
+            }
         }
 
         // --- ADSGRAM BOOSTS ---
