@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tap to Earn</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+
+    <!-- TELEGRAM WEB APP SCRIPT -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <!-- ADSGRAM SCRIPT -->
+    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+
+    <style>
+        body { 
+            font-family: 'Outfit', sans-serif; 
+            background-color: #0b101e; 
+            color: #fff; 
+            user-select: none; 
+            -webkit-tap-highlight-color: transparent;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+        .font-tech { font-family: 'Orbitron', sans-serif; }
+
+        /* Grid Background for Tap UI */
+        .bg-grid {
+            background-size: 40px 40px;
+            background-image: 
+                linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        }
+
+        /* Glassmorphism */
+        .glass-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+        }
+        
+        .glass-nav {
+            background: rgba(11, 16, 30, 0.95);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Coin Animations */
+        .coin-glow {
+            box-shadow: 0 0 40px rgba(250, 204, 21, 0.4), inset 0 0 20px rgba(250, 204, 21, 0.3);
+            transition: transform 0.1s;
+        }
+        .coin-glow:active {
+            transform: scale(0.95);
+        }
+        
+        .ripple-circle {
+            position: absolute;
+            border-radius: 50%;
+            border: 1px solid rgba(250, 204, 21, 0.2);
+            animation: ripple 3s linear infinite;
+        }
+        .ripple-circle:nth-child(1) { width: 150px; height: 150px; animation-delay: 0s; }
+        .ripple-circle:nth-child(2) { width: 220px; height: 220px; animation-delay: 1s; }
+        .ripple-circle:nth-child(3) { width: 300px; height: 300px; animation-delay: 2s; }
+
+        @keyframes ripple {
+            0% { transform: scale(0.8); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        /* Floating Text Animation */
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-80px) scale(1.2); opacity: 0; }
+        }
+        .animate-float-up {
+            animation: floatUp 0.8s ease-out forwards;
+        }
+
+        /* Page Transitions */
+        .page-transition { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Custom Scrollbar */
+        .custom-scroll::-webkit-scrollbar { width: 0px; height: 0px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        
+        /* Energy Bar */
+        .energy-bar-container {
+            width: 100%;
+            height: 12px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            gap: 2px;
+            padding: 2px;
+        }
+        .energy-segment {
+            flex: 1;
+            height: 100%;
+            background: #eab308;
+            border-radius: 2px;
+            transition: all 0.3s;
+        }
+        .energy-segment.empty { background: transparent; }
+
+        /* Minigames Grid */
+        .ttt-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; max-width: 280px; margin: 0 auto; }
+        .ttt-cell { aspect-ratio: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; font-weight: bold; font-family: 'Orbitron', sans-serif; cursor: pointer; transition: all 0.2s; }
+        .ttt-cell:active { transform: scale(0.95); }
+        .ttt-cell.x { color: #eab308; text-shadow: 0 0 10px rgba(234,179,8,0.5); }
+        .ttt-cell.o { color: #ef4444; text-shadow: 0 0 10px rgba(239,68,68,0.5); }
+    </style>
+</head>
+<body class="h-screen w-full flex flex-col relative bg-grid">
+
+    <!-- Toast Notification -->
+    <div id="toast-container" class="fixed top-4 left-0 right-0 z-[100] flex flex-col items-center gap-2 pointer-events-none"></div>
+
+    <!-- LOADING SCREEN -->
+    <div id="auth-screen" class="fixed inset-0 z-50 bg-[#0b101e] flex flex-col items-center justify-center p-6 text-center">
+        <div class="relative w-32 h-32 mb-8">
+            <div class="absolute inset-0 bg-yellow-500 rounded-full opacity-20 animate-pulse"></div>
+            <div class="absolute inset-2 bg-gradient-to-tr from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg shadow-yellow-500/50">
+                <i class="fas fa-bolt text-5xl text-white"></i>
+            </div>
+        </div>
+        <h1 class="text-3xl font-tech font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-400 mb-2">TAP TO EARN</h1>
+        <p class="text-slate-400 mb-8 text-sm">Connecting securely...</p>
+        <div class="w-8 h-8 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
+    </div>
+
+    <!-- MAIN APP INTERFACE -->
+    <div id="main-app" class="hidden flex-1 flex flex-col h-full overflow-hidden">
+        
+        <!-- Header -->
+        <header class="flex justify-between items-center p-4 pt-6 bg-gradient-to-b from-[#0b101e] to-transparent z-20">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 p-[2px]">
+                    <img id="user-avatar" src="https://ui-avatars.com/api/?name=User&background=random" class="w-full h-full rounded-full object-cover border-2 border-[#0b101e]">
+                </div>
+                <div>
+                    <h2 class="font-bold text-sm leading-tight text-white" id="user-name">Guest</h2>
+                    <span class="text-[10px] text-slate-400 font-tech">Player</span>
+                </div>
+            </div>
+            
+            <div class="glass-card px-4 py-1.5 rounded-full flex items-center gap-2 border border-yellow-500/30 bg-yellow-500/10">
+                <i class="fas fa-coins text-yellow-400 text-sm animate-pulse"></i>
+                <span class="font-bold text-white text-sm font-tech" id="header-balance">0</span>
+            </div>
+        </header>
+
+        <!-- Content Area -->
+        <main id="content-area" class="flex-1 overflow-y-auto custom-scroll p-4 pb-24 relative">
+            
+            <!-- TAP PAGE (MAIN GAME) -->
+            <div id="tap-page" class="page-section page-transition h-full flex flex-col">
+                <div class="flex justify-between items-center mb-8">
+                    <button onclick="showPage('leaderboard-page')" class="glass-card px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 text-yellow-400 active:scale-95 transition border-yellow-500/20 hover:border-yellow-500/50">
+                        <i class="fas fa-trophy"></i> Leaderboard
+                    </button>
+                    <div class="glass-card px-3 py-1.5 rounded-full text-xs font-bold font-tech text-white flex items-center gap-2 border-yellow-500/30 bg-black/40">
+                        <i class="fas fa-bolt text-yellow-400"></i> <span id="energy-text">50/50</span>
+                    </div>
+                </div>
+
+                <div class="flex-1 flex flex-col items-center justify-center relative">
+                    <!-- Title -->
+                    <h2 class="absolute top-0 text-2xl font-tech font-bold tracking-widest text-white drop-shadow-md">
+                        <i class="fas fa-bolt text-yellow-400 mr-2"></i>TAP TO EARN
+                    </h2>
+
+                    <!-- Glowing Tap Area -->
+                    <div class="relative flex items-center justify-center w-full h-[300px] mt-4">
+                        <div class="ripple-circle"></div>
+                        <div class="ripple-circle"></div>
+                        <div class="ripple-circle"></div>
+                        
+                        <!-- Main Coin Button -->
+                        <div id="tap-coin" class="w-40 h-40 bg-gradient-to-tr from-yellow-600 via-yellow-400 to-yellow-200 rounded-full flex flex-col items-center justify-center cursor-pointer coin-glow z-10 border-4 border-yellow-300 relative">
+                            <i class="fas fa-university text-5xl text-yellow-900 drop-shadow-sm mb-1"></i>
+                            <div class="flex items-center gap-1 text-yellow-900 font-bold font-tech text-lg">
+                                <span>+</span><span id="tap-value-disp">1</span> PT
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Controls (Energy & Boosts) -->
+                <div class="mt-auto pt-4">
+                    <div class="flex justify-between text-xs text-slate-400 mb-2 font-tech font-bold px-1">
+                        <span>ENERGY</span>
+                        <span>+<span id="regen-rate">0.5</span>/sec</span>
+                    </div>
+                    <div class="energy-bar-container mb-6" id="energy-bar">
+                        <!-- Segments generated via JS -->
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Boost 1: 2x Tap -->
+                        <button onclick="activateMultiplierAd()" class="glass-card p-3 rounded-xl flex flex-col items-center justify-center gap-1 active:scale-95 transition border border-yellow-500/20 hover:border-yellow-500/50 relative overflow-hidden group">
+                            <div class="absolute inset-0 bg-yellow-500/5 group-hover:bg-yellow-500/10"></div>
+                            <div class="flex items-center gap-2 text-yellow-400 font-bold font-tech text-sm mb-1">
+                                <i class="fas fa-bolt"></i> 2x TAP
+                            </div>
+                            <div class="text-[10px] text-slate-400 flex items-center gap-1">
+                                Watch ad · 60s
+                            </div>
+                        </button>
+
+                        <!-- Boost 2: Fast Energy -->
+                        <button onclick="activateFullEnergyAd()" class="glass-card p-3 rounded-xl flex flex-col items-center justify-center gap-1 active:scale-95 transition border border-green-500/20 hover:border-green-500/50 relative overflow-hidden group">
+                            <div class="absolute inset-0 bg-green-500/5 group-hover:bg-green-500/10"></div>
+                            <div class="flex items-center gap-2 text-green-400 font-bold font-tech text-sm mb-1">
+                                <i class="fas fa-battery-full"></i> REFILL
+                            </div>
+                            <div class="text-[10px] text-slate-400 flex items-center gap-1">
+                                Watch ad · Max
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HOME / DASHBOARD PAGE -->
+            <div id="home-page" class="page-section page-transition hidden">
+                <div class="bg-gradient-to-br from-indigo-900 to-purple-900 rounded-2xl p-6 mb-4 text-center border border-indigo-500/30 shadow-xl relative overflow-hidden">
+                    <i class="fas fa-coins absolute -right-6 -bottom-6 text-9xl text-white opacity-5"></i>
+                    <p class="text-indigo-200 text-xs mb-1 uppercase tracking-widest font-bold">Total Earnings</p>
+                    <h1 class="text-4xl font-tech font-extrabold text-white mb-3 tracking-tight" id="dash-balance">0</h1>
+                    <button onclick="showPage('wallet-page')" class="bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-bold px-6 py-2 rounded-full shadow-lg transition">
+                        Withdraw (Paise Nikalein)
+                    </button>
+                </div>
+
+                <!-- Daily Drop Section -->
+                <div class="glass-card p-5 rounded-2xl mb-6 relative overflow-hidden border border-slate-700/50">
+                    <div class="flex justify-between items-center mb-5">
+                        <h3 class="font-bold text-lg text-white flex items-center gap-2"><i class="fas fa-gift text-orange-500"></i> Daily Drop</h3>
+                        <div class="bg-orange-500/10 border border-orange-500/30 text-orange-400 px-3 py-1 rounded-full text-xs font-bold font-tech flex items-center gap-1.5 shadow-[0_0_10px_rgba(249,115,22,0.2)]">
+                            <i class="fas fa-fire"></i> <span id="streak-days-text">0 Day</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-2.5 overflow-x-auto custom-scroll pb-2 mb-4 snap-x" id="daily-days-container">
+                        <!-- JS generated days -->
+                    </div>
+
+                    <button id="daily-bonus-btn" onclick="claimDailyBonus()" class="w-full bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] text-white font-bold py-4 rounded-xl shadow-[0_4px_15px_rgba(34,197,94,0.3)] active:scale-95 transition flex items-center justify-center gap-2 text-lg font-tech">
+                        <i class="fas fa-gift"></i> CLAIM +<span id="daily-claim-amt">100</span> PTS
+                    </button>
+                </div>
+
+                <!-- Advanced Promo Code System -->
+                <div class="glass-card p-5 rounded-2xl mb-6">
+                    <h3 class="font-bold text-sm text-white mb-3 flex items-center gap-2"><i class="fas fa-gift text-pink-400"></i> Promo Code</h3>
+                    <div class="flex gap-2">
+                        <input type="text" id="promo-input" placeholder="ENTER CODE" class="bg-[#0f172a] flex-1 rounded-xl p-3 text-sm text-white border border-slate-700 outline-none uppercase font-tech focus:border-pink-500 transition">
+                        <button onclick="redeemPromoCode()" class="bg-pink-600 hover:bg-pink-500 text-white px-5 rounded-xl font-bold text-sm active:scale-95 transition shadow-lg shadow-pink-900/20">APPLY</button>
+                    </div>
+                </div>
+
+                <h3 class="font-bold text-sm text-white mb-3 px-1 flex items-center gap-2"><i class="fas fa-gamepad text-green-400"></i> Play Minigames</h3>
+                <div class="grid grid-cols-2 gap-3 mb-6">
+                    <div class="glass-card p-4 rounded-xl text-center active:scale-95 transition cursor-pointer border-t-2 border-t-green-500 hover:bg-green-500/10" onclick="openTicTacToe()">
+                        <div class="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-2"><i class="fas fa-times text-green-400 text-xl"></i></div>
+                        <h4 class="font-bold text-xs text-white">Tic Tac Toe</h4>
+                        <p class="text-[9px] text-slate-400">Win +20 Coins</p>
+                    </div>
+                    <div class="glass-card p-4 rounded-xl text-center active:scale-95 transition cursor-pointer border-t-2 border-t-blue-500 hover:bg-blue-500/10" onclick="openMathSolve()">
+                        <div class="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-2"><i class="fas fa-calculator text-blue-400 text-xl"></i></div>
+                        <h4 class="font-bold text-xs text-white">Math Solve</h4>
+                        <p class="text-[9px] text-slate-400">Win +10 Coins</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LEADERBOARD PAGE -->
+            <div id="leaderboard-page" class="page-section page-transition hidden h-full flex flex-col">
+                <div class="flex flex-col items-center text-center mb-6">
+                    <div class="w-20 h-20 bg-gradient-to-tr from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mb-3 shadow-lg shadow-orange-500/30 border-4 border-[#0b101e]">
+                        <i class="fas fa-trophy text-3xl text-white"></i>
+                    </div>
+                    <h2 class="text-2xl font-tech font-bold text-white">Leaderboard</h2>
+                    <p class="text-slate-400 text-xs">Top Earners (Global)</p>
+                </div>
+                
+                <div class="glass-card p-3 rounded-xl mb-4 border border-yellow-500/30 flex justify-between items-center bg-yellow-500/10">
+                    <div class="flex items-center gap-3">
+                        <span class="font-bold text-yellow-400">#Me</span>
+                        <img id="lb-my-avatar" src="" class="w-8 h-8 rounded-full">
+                        <span class="font-bold text-white text-sm">You</span>
+                    </div>
+                    <span class="font-bold font-tech text-yellow-400" id="lb-my-score">0</span>
+                </div>
+
+                <div class="flex-1 overflow-y-auto custom-scroll space-y-2 pb-4" id="leaderboard-list">
+                    <div class="text-center text-slate-400 py-10"><i class="fas fa-spinner fa-spin text-2xl"></i><br>Loading Ranks...</div>
+                </div>
+            </div>
+
+            <!-- WALLET PAGE -->
+            <div id="wallet-page" class="page-section page-transition hidden">
+                <h2 class="text-xl font-bold mb-4 px-1">Wallet (Withdraw)</h2>
+                <div class="glass-card rounded-2xl p-6 mb-6 text-center border-t-4 border-t-indigo-500 relative overflow-hidden">
+                    <p class="text-slate-400 text-xs mb-1 uppercase tracking-widest">Current Balance</p>
+                    <h1 class="text-4xl font-tech font-extrabold text-white mb-2 flex justify-center items-center gap-2">
+                        <span id="wallet-balance">0</span> <i class="fas fa-coins text-yellow-500 text-2xl"></i>
+                    </h1>
+                    <div class="inline-block bg-black/40 px-3 py-1 rounded-md text-[10px] text-slate-300 border border-white/5">
+                        Rate: 1000 Coins = <span class="text-green-400 font-bold">₹10</span>
+                    </div>
+                </div>
+                
+                <div class="glass-card rounded-2xl p-5 mb-8">
+                    <form onsubmit="handleWithdraw(event)" class="space-y-4">
+                        <div>
+                            <select id="withdraw-method" class="w-full bg-[#0b101e] border border-slate-700 rounded-xl p-3.5 text-sm text-white appearance-none outline-none focus:border-indigo-500 transition">
+                                <option value="" disabled selected>Select Payment Method</option>
+                                <option value="UPI">UPI</option>
+                                <option value="Paytm">Paytm</option>
+                                <option value="Binance">Binance Pay</option>
+                            </select>
+                        </div>
+                        <input type="text" id="withdraw-details" required placeholder="Enter ID / Number" class="w-full bg-[#0b101e] border border-slate-700 rounded-xl p-3.5 text-sm text-white outline-none focus:border-indigo-500 transition">
+                        <input type="number" id="withdraw-amount" required placeholder="Amount (Min 1000 Coins)" min="1000" class="w-full bg-[#0b101e] border border-slate-700 rounded-xl p-3.5 text-sm text-white outline-none focus:border-indigo-500 transition">
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3.5 rounded-xl shadow-lg active:scale-95 transition">Withdraw Now</button>
+                    </form>
+                </div>
+                
+                <h3 class="font-bold text-sm text-white mb-3 px-1">Withdrawal History</h3>
+                <div id="tx-history" class="space-y-2 pb-10"></div>
+            </div>
+
+            <!-- REFER PAGE -->
+            <div id="refer-page" class="page-section page-transition hidden">
+                <div class="flex flex-col items-center text-center mt-4">
+                    <div class="w-24 h-24 bg-gradient-to-tr from-blue-500 to-cyan-500 rounded-3xl flex items-center justify-center mb-6 shadow-xl shadow-blue-900/30 rotate-3 border-4 border-[#0b101e]">
+                        <i class="fas fa-user-friends text-4xl text-white"></i>
+                    </div>
+                    
+                    <h2 class="text-2xl font-bold text-white mb-2">Invite Friends</h2>
+                    <p class="text-slate-400 text-sm px-6 mb-6">Doston ko invite karein aur har friend par <span class="text-yellow-400 font-bold">500</span> coins kamayein!</p>
+                    
+                    <div class="flex gap-4 w-full mb-6">
+                        <div class="bg-slate-800/50 rounded-xl p-3 flex-1 border border-slate-700">
+                            <p class="text-[10px] text-slate-400 uppercase tracking-widest">Invites</p>
+                            <p class="text-xl font-bold text-white" id="total-refers-display">0</p>
+                        </div>
+                        <div class="bg-slate-800/50 rounded-xl p-3 flex-1 border border-slate-700">
+                            <p class="text-[10px] text-slate-400 uppercase tracking-widest">Earned</p>
+                            <p class="text-xl font-bold text-green-400" id="total-refers-earned">0</p>
+                        </div>
+                    </div>
+
+                    <div class="w-full glass-card p-5 rounded-xl border border-dashed border-slate-600 mb-6 relative overflow-hidden">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-widest mb-2">Your Invite Code</p>
+                        <div class="flex items-center justify-center gap-4 bg-black/30 p-2 rounded-lg">
+                            <span id="my-ref-code" class="text-2xl font-tech font-bold text-white tracking-widest select-all">...</span>
+                            <button onclick="copyRefCode()" class="w-8 h-8 bg-slate-700 hover:bg-white hover:text-black rounded-full flex items-center justify-center transition"><i class="fas fa-copy text-xs"></i></button>
+                        </div>
+                    </div>
+
+                    <button onclick="shareOnTelegram()" class="w-full bg-[#229ED9] hover:bg-[#1e8ubc] text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-lg mb-6 active:scale-95 transition">
+                        <i class="fab fa-telegram-plane"></i> Share on Telegram
+                    </button>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="glass-nav fixed bottom-0 w-full pb-safe pt-2 px-4 flex justify-between items-center z-40 h-[75px]">
+            <button onclick="showPage('home-page')" class="nav-item flex flex-col items-center gap-1 w-[20%] text-slate-500 transition duration-300" id="nav-home">
+                <i class="fas fa-home text-xl"></i><span class="text-[10px] font-medium">Home</span>
+            </button>
+            <button onclick="showPage('leaderboard-page')" class="nav-item flex flex-col items-center gap-1 w-[20%] text-slate-500 transition duration-300" id="nav-leaderboard">
+                <i class="fas fa-trophy text-xl"></i><span class="text-[10px] font-medium">Rank</span>
+            </button>
+            
+            <!-- Central TAP Button -->
+            <div class="relative -top-6 w-[20%] flex justify-center">
+                <button onclick="showPage('tap-page')" class="nav-item active w-16 h-16 bg-gradient-to-tr from-yellow-500 to-orange-600 rounded-full flex flex-col items-center justify-center shadow-[0_0_20px_rgba(234,179,8,0.4)] border-4 border-[#0b101e] active:scale-90 transition group text-white" id="nav-tap">
+                    <i class="fas fa-bolt text-2xl group-hover:animate-pulse"></i>
+                    <span class="text-[8px] font-bold uppercase mt-0.5">TAP</span>
+                </button>
+            </div>
+            
+            <button onclick="showPage('refer-page')" class="nav-item flex flex-col items-center gap-1 w-[20%] text-slate-500 transition duration-300" id="nav-refer">
+                <i class="fas fa-user-friends text-xl"></i><span class="text-[10px] font-medium">Friends</span>
+            </button>
+            <button onclick="showPage('wallet-page')" class="nav-item flex flex-col items-center gap-1 w-[20%] text-slate-500 transition duration-300" id="nav-wallet">
+                <i class="fas fa-wallet text-xl"></i><span class="text-[10px] font-medium">Wallet</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- MODALS -->
+    
+    <!-- Payment Success Modal -->
+    <div id="payment-success-modal" class="fixed inset-0 z-[200] bg-black/90 hidden flex-col items-center justify-center p-6 text-center backdrop-blur-md">
+        <div class="bg-slate-800 p-8 rounded-3xl border border-green-500/30 shadow-2xl flex flex-col items-center max-w-sm w-full relative overflow-hidden">
+            <div class="absolute inset-0 bg-green-500/5"></div>
+            <div class="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-green-500/40 animate-bounce">
+                <i class="fas fa-check text-4xl text-white"></i>
+            </div>
+            <h2 class="text-3xl font-extrabold text-white mb-2">Success!</h2>
+            <p class="text-slate-300 text-sm mb-6">Withdrawal request submitted.</p>
+            <button type="button" onclick="document.getElementById('payment-success-modal').classList.add('hidden')" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition">CLOSE</button>
+        </div>
+    </div>
+
+    <!-- Ad Loading / Confirm Modal -->
+    <div id="ad-modal" class="fixed inset-0 z-[80] bg-black/95 hidden flex-col items-center justify-center p-6 text-center backdrop-blur-xl">
+        <div class="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mb-4 shadow-lg shadow-blue-500/50 animate-pulse">
+            <i class="fas fa-video text-3xl text-white"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-white mb-2">Watch Ad for Boost</h2>
+        <p class="text-slate-300 text-sm mb-6 max-w-xs font-bold text-yellow-300">Pura Ad dekhein aur apna reward claim karein.</p>
+        <div class="flex gap-4 w-full max-w-xs">
+            <button onclick="closeAdModal()" class="flex-1 bg-slate-700 text-white font-bold py-3 rounded-xl active:scale-95 transition">Cancel</button>
+            <button id="start-ad-btn" class="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-500/40 active:scale-95 transition flex justify-center items-center gap-2">
+                <i class="fas fa-play"></i> Watch
+            </button>
+        </div>
+    </div>
+
+    <!-- Tic Tac Toe Modal -->
+    <div id="ttt-modal" class="fixed inset-0 z-[90] bg-black/95 hidden flex-col items-center justify-center p-6 backdrop-blur-xl">
+        <div class="w-full max-w-sm">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold font-tech text-white">Tic Tac Toe</h2>
+                <button onclick="closeTicTacToe()" class="text-slate-400 hover:text-white bg-slate-800 w-8 h-8 rounded-full transition"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="glass-card p-4 rounded-2xl text-center mb-6">
+                <p class="text-slate-300 text-sm">Win against AI to get <span class="text-yellow-400 font-bold">+20 Coins</span></p>
+            </div>
+            <div id="ttt-board" class="ttt-grid mb-6"></div>
+            <p id="ttt-status" class="text-center text-lg font-bold text-white font-tech h-6">Your Turn (X)</p>
+        </div>
+    </div>
+
+    <!-- Math Solve Modal -->
+    <div id="math-modal" class="fixed inset-0 z-[90] bg-black/95 hidden flex-col items-center justify-center p-6 backdrop-blur-xl">
+        <div class="w-full max-w-sm">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold font-tech text-white">Math Solve</h2>
+                <button onclick="closeMathSolve()" class="text-slate-400 hover:text-white bg-slate-800 w-8 h-8 rounded-full transition"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="glass-card p-8 rounded-2xl text-center mb-6">
+                <p class="text-5xl font-bold text-white mb-2 font-tech drop-shadow-lg" id="math-question">?</p>
+                <p class="text-slate-400 text-xs">Select correct answer (+10 Coins)</p>
+            </div>
+            <div id="math-options" class="grid grid-cols-2 gap-4"></div>
+        </div>
+    </div>
+
+    <!-- SINGLE JAVASCRIPT BLOCK -->
+    <script>
+        // Updated Firebase Configuration for Tap-to-Earn
+        const firebaseConfig = {
+          apiKey: "AIzaSyAV_R8RWwQkXlT0EpQFm17ghkRVHP1FNi0",
+          authDomain: "tap-to-earn-430fc.firebaseapp.com",
+          databaseURL: "https://tap-to-earn-430fc-default-rtdb.firebaseio.com",
+          projectId: "tap-to-earn-430fc",
+          storageBucket: "tap-to-earn-430fc.firebasestorage.app",
+          messagingSenderId: "677210100055",
+          appId: "1:677210100055:web:1037565f8b3ee06122ee12"
+        };
+        const appId = "tap-to-earn-430fc";
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        let currentUser = null;
+        let userData = null;
+        let tgUser = null;
+
+        // Game State
+        let energy = 50;
+        const maxEnergy = 50;
+        let tapValue = 1;
+        let tapMultiplier = 1;
+        let pendingCoinsToSync = 0;
+        
+        // Anti-Cheat Variables
+        let tapTimestamps = [];
+        const MAX_TAPS_PER_SECOND = 12; // Auto-clicker protection
+
+        let multiplierTimer = null;
+        let adCallback = null; 
+        
+        window.rulesWarned = false;
+
+        // Initialize App & Force Strict Auth Flow
+        window.addEventListener('DOMContentLoaded', async () => {
+            // Setup Telegram
+            if (window.Telegram && window.Telegram.WebApp) {
+                const tg = window.Telegram.WebApp;
+                tg.ready(); tg.expand();
+                const initDataUnsafe = tg.initDataUnsafe || {};
+                if(initDataUnsafe.start_param) sessionStorage.setItem('refCode', initDataUnsafe.start_param);
+                if (initDataUnsafe.user) { 
+                    tgUser = initDataUnsafe.user; 
+                }
+            } else {
+                const urlParams = new URLSearchParams(window.location.search);
+                const ref = urlParams.get('startapp') || urlParams.get('ref');
+                if(ref) sessionStorage.setItem('refCode', ref);
+            }
+
+            // AWAIT AUTH INITIALIZATION BEFORE PROCEEDING
+            try {
+                if (tgUser) {
+                    const email = `tg_${tgUser.id}@tap2earn.app`;
+                    const password = `secret_pass_${tgUser.id}`;
+                    try { 
+                        await auth.signInWithEmailAndPassword(email, password); 
+                    } catch (error) {
+                        if (error.code === 'auth/user-not-found') {
+                            await auth.createUserWithEmailAndPassword(email, password);
+                        } else {
+                            await auth.signInAnonymously();
+                        }
+                    }
+                } else {
+                    await auth.signInAnonymously();
+                }
+            } catch (e) {
+                console.error("Auth init failed", e);
+            }
+
+            // LISTEN TO AUTH STATE
+            auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    currentUser = user;
+                    if (tgUser) {
+                        document.getElementById('user-name').innerText = tgUser.first_name;
+                        if(tgUser.photo_url) {
+                             document.getElementById('user-avatar').src = tgUser.photo_url;
+                             document.getElementById('lb-my-avatar').src = tgUser.photo_url;
+                        }
+                    }
+                    
+                    await initUserData(user.uid);
+                    
+                    document.getElementById('auth-screen').classList.add('hidden');
+                    document.getElementById('main-app').classList.remove('hidden');
+                    showPage('tap-page'); 
+                    loadLeaderboard();
+                    
+                    const savedRef = sessionStorage.getItem('refCode');
+                    if(savedRef) setTimeout(() => processReferral(savedRef), 1500);
+                }
+            });
+
+            // Start background tasks
+            setupTapListener();
+            startEnergyRegen();
+            startFirebaseSyncLoop();
+        });
+
+        async function initUserData(uid) {
+            const ref = db.collection(`artifacts/${appId}/users/${uid}/profile`).doc('main');
+            try {
+                const doc = await ref.get();
+                if (!doc.exists) {
+                    const code = 'TAP' + Math.floor(10000 + Math.random() * 90000);
+                    const initialData = {
+                        uid: uid,
+                        firstName: tgUser ? tgUser.first_name : 'Guest',
+                        avatar: tgUser && tgUser.photo_url ? tgUser.photo_url : '',
+                        balance: 0,
+                        referralCode: code,
+                        totalEarned: 0,
+                        totalRefers: 0,
+                        referredBy: null,
+                        usedPromoCodes: [],
+                        lastDailyBonus: 0,
+                        dailyStreak: 0,
+                        joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+                    await ref.set(initialData);
+                    try { await db.collection(`artifacts/${appId}/public/data/referralCodes`).doc(code).set({ userId: uid }); } catch(e) {}
+                    userData = initialData;
+                } else {
+                    userData = doc.data();
+                }
+                updateHeader();
+                checkDailyBonusStatus();
+                
+                // Realtime listener
+                ref.onSnapshot(snapshot => { 
+                    if (snapshot.exists) { 
+                        userData = snapshot.data(); 
+                        updateHeader(); 
+                        checkDailyBonusStatus();
+                    } 
+                });
+            } catch(e) { 
+                console.error("Firebase Init Error:", e);
+                userData = { balance: 0, referralCode: 'ERR' }; 
+                updateHeader(); 
+            }
+        }
+
+        function addCoinsOptimistic(amount) {
+            pendingCoinsToSync += amount;
+            userData.balance = (userData.balance || 0) + amount;
+            userData.totalEarned = (userData.totalEarned || 0) + amount;
+            updateHeader();
+        }
+
+        // --- TAP GAME & ANTI-CHEAT LOGIC ---
+        function setupTapListener() {
+            const coin = document.getElementById('tap-coin');
+            
+            coin.addEventListener('touchstart', (e) => {
+                e.preventDefault(); 
+                for(let i=0; i<e.changedTouches.length; i++) {
+                    handleTap(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+                }
+            }, {passive: false});
+
+            coin.addEventListener('mousedown', (e) => {
+                handleTap(e.clientX, e.clientY);
+            });
+        }
+
+        function handleTap(x, y) {
+            if (!userData) return;
+
+            // Anti-Cheat: Auto-Clicker Prevention
+            const now = Date.now();
+            tapTimestamps = tapTimestamps.filter(t => now - t < 1000); // Keep last 1 second taps
+            if (tapTimestamps.length >= MAX_TAPS_PER_SECOND) {
+                showToast("Tapping too fast! Slow down.", "error");
+                return; // Block tap
+            }
+            tapTimestamps.push(now);
+            
+            const cost = 1; 
+            if (energy >= cost) {
+                energy -= cost;
+                
+                const earned = tapValue * tapMultiplier;
+                addCoinsOptimistic(earned);
+                updateEnergyUI();
+
+                // Visual Feedback
+                createFloatingNumber(x, y, earned);
+                
+                if(window.navigator && window.navigator.vibrate) window.navigator.vibrate(15);
+            } else {
+                showToast("Not enough energy!", "error");
+            }
+        }
+
+        function createFloatingNumber(x, y, amount) {
+            const floater = document.createElement('div');
+            floater.className = 'absolute text-yellow-400 font-bold font-tech text-3xl pointer-events-none select-none animate-float-up z-50 drop-shadow-md';
+            const offsetX = (Math.random() - 0.5) * 40;
+            floater.style.left = `${x - 10 + offsetX}px`;
+            floater.style.top = `${y - 20}px`;
+            floater.innerText = `+${amount}`;
+            document.body.appendChild(floater);
+            setTimeout(() => floater.remove(), 800);
+        }
+
+        function updateEnergyUI() {
+            document.getElementById('energy-text').innerText = `${Math.floor(energy)}/${maxEnergy}`;
+            const bar = document.getElementById('energy-bar');
+            bar.innerHTML = '';
+            const segments = 10;
+            const filledSegments = Math.round((energy / maxEnergy) * segments);
+            for(let i=0; i<segments; i++) {
+                const div = document.createElement('div');
+                div.className = `energy-segment ${i >= filledSegments ? 'empty' : ''}`;
+                bar.appendChild(div);
+            }
+        }
+
+        function startEnergyRegen() {
+            setInterval(() => {
+                if (energy < maxEnergy) {
+                    // Slower energy regen: 0.5 per second (takes ~100 seconds for full bar)
+                    energy = Math.min(maxEnergy, energy + 0.5); 
+                    updateEnergyUI();
+                }
+            }, 1000);
+            updateEnergyUI();
+        }
+
+        // --- FIREBASE BATCH SYNC ---
+        function startFirebaseSyncLoop() {
+            setInterval(async () => {
+                if (pendingCoinsToSync > 0 && currentUser) {
+                    const amountToSave = pendingCoinsToSync;
+                    pendingCoinsToSync = 0; 
+                    
+                    const ref = db.collection(`artifacts/${appId}/users/${currentUser.uid}/profile`).doc('main');
+                    try {
+                        await ref.update({
+                            balance: firebase.firestore.FieldValue.increment(amountToSave),
+                            totalEarned: firebase.firestore.FieldValue.increment(amountToSave)
+                        });
+                        
+                        const lbRef = db.collection(`artifacts/${appId}/public/data/leaderboard`).doc(currentUser.uid);
+                        await lbRef.set({
+                            name: userData.firstName || 'Guest',
+                            avatar: userData.avatar || '',
+                            balance: (userData.totalEarned || 0) + amountToSave 
+                        }, { merge: true });
+
+                    } catch(e) {
+                        console.error("Sync failed", e);
+                        pendingCoinsToSync += amountToSave; 
+                    }
+                }
+            }, 3000);
+        }
+
+        // --- DAILY BONUS ---
+        function checkDailyBonusStatus() {
+            if(!userData) return;
+            const btn = document.getElementById('daily-bonus-btn');
+            const container = document.getElementById('daily-days-container');
+            const streakText = document.getElementById('streak-days-text');
+            const amtText = document.getElementById('daily-claim-amt');
+            
+            const now = Date.now();
+            const lastBonus = userData.lastDailyBonus || 0;
+            const hrs24 = 24 * 60 * 60 * 1000;
+            const hrs48 = 48 * 60 * 60 * 1000;
+            
+            let currentStreak = userData.dailyStreak || 0;
+            let isClaimable = false;
+
+            // Agar 48 hours se zyada ho gaya, toh streak break ho jayegi (0 pe reset)
+            if (lastBonus > 0 && (now - lastBonus) > hrs48) {
+                currentStreak = 0;
+            }
+
+            if (now - lastBonus >= hrs24 || lastBonus === 0) {
+                isClaimable = true;
+            }
+
+            if(streakText) streakText.innerText = `${currentStreak} Day${currentStreak !== 1 ? 's' : ''}`;
+
+            const rewards = [100, 120, 130, 140, 150, 160, 200];
+            let localStreak = currentStreak % 7;
+            
+            let boxHTML = '';
+            const statusClasses = {
+                'completed': 'border-[#22c55e] bg-[#22c55e]/10 text-[#22c55e]',
+                'active': 'border-[#4ade80] bg-[#4ade80]/10 text-[#4ade80] shadow-[0_0_15px_rgba(74,222,128,0.2)] transform scale-105',
+                'locked': 'border-slate-800 bg-slate-900/50 text-slate-600'
+            };
+
+            for(let i=0; i<7; i++) {
+                let dayNum = i + 1;
+                let rewardAmt = rewards[i];
+                
+                let status = 'locked';
+                if (i < localStreak) status = 'completed';
+                else if (i === localStreak && isClaimable) status = 'active';
+                else if (i === localStreak && !isClaimable) status = 'locked'; 
+                
+                let checkmark = status === 'completed' ? `<div class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-[#22c55e] rounded-full flex items-center justify-center border-2 border-[#0b101e]"><i class="fas fa-check text-[8px] text-[#0b101e]"></i></div>` : '';
+
+                boxHTML += `
+                    <div class="min-w-[65px] h-[75px] rounded-2xl border-2 flex flex-col items-center justify-center relative transition-all duration-300 snap-center ${statusClasses[status]}">
+                        ${checkmark}
+                        <span class="font-tech font-bold text-lg leading-none mb-1">${rewardAmt}</span>
+                        <span class="text-[10px] font-bold opacity-80 font-tech uppercase">D${dayNum}</span>
+                    </div>
+                `;
+            }
+            if(container) container.innerHTML = boxHTML;
+
+            // Auto-scroll to active box
+            setTimeout(() => {
+                if(!container) return;
+                const activeBox = container.querySelector('.transform.scale-105') || container.querySelector('.border-\\[\\#22c55e\\]:last-child');
+                if (activeBox) {
+                    activeBox.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                }
+            }, 100);
+
+            if(!btn) return;
+            if (isClaimable) {
+                let rewardAmt = rewards[localStreak];
+                if(amtText) amtText.innerText = rewardAmt;
+                btn.innerHTML = `<i class="fas fa-gift"></i> CLAIM +${rewardAmt} PTS`;
+                btn.className = "w-full bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] text-white font-bold py-4 rounded-xl shadow-[0_4px_15px_rgba(34,197,94,0.3)] active:scale-95 transition flex items-center justify-center gap-2 text-lg font-tech";
+                btn.disabled = false;
+            } else {
+                btn.innerHTML = `<i class="fas fa-clock"></i> COME BACK TOMORROW`;
+                btn.className = "w-full bg-slate-800 text-slate-500 font-bold py-4 rounded-xl flex items-center justify-center gap-2 text-lg font-tech cursor-not-allowed border border-slate-700";
+                btn.disabled = true;
+            }
+        }
+
+        async function claimDailyBonus() {
+            if(!userData) return;
+            const now = Date.now();
+            const lastBonus = userData.lastDailyBonus || 0;
+            const hrs24 = 24 * 60 * 60 * 1000;
+            const hrs48 = 48 * 60 * 60 * 1000;
+            
+            let currentStreak = userData.dailyStreak || 0;
+            if (lastBonus > 0 && (now - lastBonus) > hrs48) {
+                currentStreak = 0;
+            }
+
+            if (now - lastBonus >= hrs24 || lastBonus === 0) {
+                const rewards = [100, 120, 130, 140, 150, 160, 200];
+                let localStreak = currentStreak % 7;
+                let rewardAmt = rewards[localStreak];
+                
+                // Optimistic UI update
+                addCoinsOptimistic(rewardAmt);
+                userData.lastDailyBonus = now;
+                userData.dailyStreak = currentStreak + 1;
+                checkDailyBonusStatus();
+                showToast(`Daily Drop Claimed: +${rewardAmt} PTS!`, "success");
+                
+                // Real DB Update
+                try {
+                    const ref = db.collection(`artifacts/${appId}/users/${currentUser.uid}/profile`).doc('main');
+                    await ref.update({ 
+                        lastDailyBonus: now,
+                        dailyStreak: userData.dailyStreak
+                    });
+                } catch (e) { console.error("Daily bonus sync fail", e); }
+            } else {
+                showToast("Wait 24 hours for next drop.", "error");
+            }
+        }
+
+        // --- TIC TAC TOE MINIGAME ---
+        let tttBoard = ['', '', '', '', '', '', '', '', ''];
+        let tttActive = false;
+
+        function openTicTacToe() { 
+            document.getElementById('ttt-modal').classList.remove('hidden'); 
+            document.getElementById('ttt-modal').classList.add('flex'); 
+            tttBoard = ['', '', '', '', '', '', '', '', '']; 
+            tttActive = true; 
+            renderTTT(); 
+            document.getElementById('ttt-status').innerText = "Your Turn (X)"; 
+        }
+        function closeTicTacToe() { 
+            document.getElementById('ttt-modal').classList.add('hidden'); 
+            document.getElementById('ttt-modal').classList.remove('flex'); 
+        }
+        function renderTTT() { 
+            const board = document.getElementById('ttt-board'); 
+            board.innerHTML = ''; 
+            tttBoard.forEach((val, idx) => { 
+                const cell = document.createElement('div'); 
+                cell.className = `ttt-cell ${val === 'X' ? 'x' : (val === 'O' ? 'o' : '')}`; 
+                cell.innerText = val; 
+                cell.onclick = () => userMoveTTT(idx); 
+                board.appendChild(cell); 
+            }); 
+        }
+        function userMoveTTT(idx) {
+            if(!tttActive || tttBoard[idx] !== '') return;
+            tttBoard[idx] = 'X'; 
+            renderTTT();
+            
+            if(checkWinTTT('X')) { 
+                tttActive = false; 
+                document.getElementById('ttt-status').innerText = "You Won!"; 
+                setTimeout(() => { 
+                    closeTicTacToe(); 
+                    addCoinsOptimistic(20);
+                    showToast("Tic Tac Toe Win: +20 Coins!", "success"); 
+                }, 1000); 
+                return; 
+            }
+            if(tttBoard.includes('')) { 
+                document.getElementById('ttt-status').innerText = "AI Thinking..."; 
+                tttActive = false; // block input
+                setTimeout(compMoveTTT, 600); 
+            } else { 
+                document.getElementById('ttt-status').innerText = "Draw!"; 
+                setTimeout(openTicTacToe, 1500); 
+            }
+        }
+        function compMoveTTT() {
+            let move = -1; 
+            // AI Logic (Simple)
+            move = findWinningMoveTTT('O'); 
+            if(move === -1) move = findWinningMoveTTT('X'); 
+            if(move === -1 && tttBoard[4] === '') move = 4; 
+            if(move === -1) { 
+                let empty = tttBoard.map((v, i) => v === '' ? i : null).filter(v => v !== null); 
+                move = empty[Math.floor(Math.random() * empty.length)]; 
+            }
+            tttBoard[move] = 'O'; 
+            renderTTT();
+            
+            if(checkWinTTT('O')) { 
+                document.getElementById('ttt-status').innerText = "AI Won!"; 
+                setTimeout(() => { showToast("You Lost! Try Again.", "error"); openTicTacToe(); }, 1500); 
+            } else { 
+                tttActive = true;
+                document.getElementById('ttt-status').innerText = "Your Turn (X)"; 
+            }
+        }
+        function findWinningMoveTTT(p) { 
+            const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]]; 
+            for(let c of wins) { 
+                const [x,y,z]=c; 
+                if(tttBoard[x]===p && tttBoard[y]===p && tttBoard[z]==='') return z; 
+                if(tttBoard[x]===p && tttBoard[z]===p && tttBoard[y]==='') return y; 
+                if(tttBoard[y]===p && tttBoard[z]===p && tttBoard[x]==='') return x; 
+            } 
+            return -1; 
+        }
+        function checkWinTTT(p) { 
+            const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]]; 
+            return wins.some(c => c.every(i => tttBoard[i] === p)); 
+        }
+
+        // --- MATH SOLVE MINIGAME ---
+        let mathAnswer = 0;
+        function openMathSolve() { 
+            document.getElementById('math-modal').classList.remove('hidden'); 
+            document.getElementById('math-modal').classList.add('flex'); 
+            generateMathQuestion(); 
+        }
+        function closeMathSolve() { 
+            document.getElementById('math-modal').classList.add('hidden'); 
+            document.getElementById('math-modal').classList.remove('flex'); 
+        }
+        function generateMathQuestion() { 
+            const isAdd = Math.random() > 0.5;
+            const n1 = Math.floor(Math.random()*30)+5;
+            const n2 = Math.floor(Math.random()*20)+1; 
+            
+            if(isAdd) {
+                mathAnswer = n1 + n2; 
+                document.getElementById('math-question').innerText = `${n1} + ${n2}`; 
+            } else {
+                mathAnswer = n1 - n2; 
+                document.getElementById('math-question').innerText = `${n1} - ${n2}`; 
+            }
+
+            let opts = [
+                mathAnswer, 
+                mathAnswer + Math.floor(Math.random()*5)+1, 
+                mathAnswer - Math.floor(Math.random()*5)-1, 
+                mathAnswer + 10
+            ]; 
+            opts.sort(() => Math.random() - 0.5); // shuffle
+            
+            const cont = document.getElementById('math-options'); 
+            cont.innerHTML = ''; 
+            opts.forEach(opt => { 
+                const btn = document.createElement('button'); 
+                btn.className = 'glass-card border-blue-500/30 hover:bg-blue-600/50 text-white font-bold py-4 rounded-xl text-xl font-tech transition'; 
+                btn.innerText = opt; 
+                btn.onclick = () => checkMathAnswer(opt); 
+                cont.appendChild(btn); 
+            }); 
+        }
+        function checkMathAnswer(ans) { 
+            if(ans === mathAnswer) { 
+                closeMathSolve(); 
+                addCoinsOptimistic(10);
+                showToast("Math Genius: +10 Coins!", "success"); 
+            } else { 
+                showToast("Wrong! Try Again", "error"); 
+                generateMathQuestion(); 
+            } 
+        }
+
+        // --- ADSGRAM BOOSTS ---
+        function activateMultiplierAd() {
+            if(tapMultiplier > 1) return showToast("Boost already active!", "info");
+            adCallback = () => {
+                tapMultiplier = 2;
+                document.getElementById('tap-value-disp').innerText = (tapValue * tapMultiplier);
+                showToast("2x TAP Active for 60s!", "success");
+                
+                if(multiplierTimer) clearTimeout(multiplierTimer);
+                multiplierTimer = setTimeout(() => {
+                    tapMultiplier = 1;
+                    document.getElementById('tap-value-disp').innerText = tapValue;
+                    showToast("2x TAP Ended", "info");
+                }, 60000);
+            };
+            showAdConfirmModal();
+        }
+
+        function activateFullEnergyAd() {
+            if(energy >= maxEnergy) return showToast("Energy already full!", "info");
+            adCallback = () => {
+                energy = maxEnergy;
+                updateEnergyUI();
+                showToast("Energy Refilled!", "success");
+            };
+            showAdConfirmModal();
+        }
+
+        function showAdConfirmModal() {
+            const modal = document.getElementById('ad-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            const btn = document.getElementById('start-ad-btn');
+            btn.onclick = () => {
+                closeAdModal();
+                showToast("Loading Ad...", "info");
+                
+                // Telegram environment check
+                const isTelegramEnv = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData;
+
+                if (window.Adsgram && isTelegramEnv) {
+                    try {
+                        const AdController = window.Adsgram.init({ blockId: "25046" }); 
+                        AdController.show().then(() => {
+                            if(adCallback) adCallback();
+                            adCallback = null;
+                        }).catch(e => {
+                            console.error('Ad Error', e);
+                            if(adCallback) adCallback();
+                            adCallback = null;
+                        });
+                    } catch(err) {
+                        console.error('Adsgram Init Error', err);
+                        if(adCallback) adCallback();
+                        adCallback = null;
+                    }
+                } else {
+                    console.log("Browser Mode: Ad skipped, reward granted for testing.");
+                    if(adCallback) adCallback();
+                    adCallback = null;
+                }
+            };
+        }
+
+        function closeAdModal() {
+            document.getElementById('ad-modal').classList.add('hidden');
+            document.getElementById('ad-modal').classList.remove('flex');
+            adCallback = null;
+        }
+
+        // --- PROMO CODE SYSTEM ---
+        async function redeemPromoCode() {
+            const input = document.getElementById('promo-input');
+            const code = input.value.trim().toUpperCase();
+            if(!code) return showToast("Code dalein", "error");
+            
+            if(userData.usedPromoCodes && userData.usedPromoCodes.includes(code)) {
+                return showToast("Ye code aap pehle hi use kar chuke hain!", "error");
+            }
+
+            try {
+                const promoRef = db.collection(`artifacts/${appId}/public/data/promoCodes`).doc(code);
+                const doc = await promoRef.get();
+                
+                if(doc.exists) {
+                    const data = doc.data();
+                    if(data.uses >= data.maxUses) return showToast("Code expire ho gaya hai!", "error");
+                    
+                    const reward = data.reward || 500;
+                    
+                    const userRef = db.collection(`artifacts/${appId}/users/${currentUser.uid}/profile`).doc('main');
+                    await userRef.update({
+                        balance: firebase.firestore.FieldValue.increment(reward),
+                        usedPromoCodes: firebase.firestore.FieldValue.arrayUnion(code)
+                    });
+                    
+                    await promoRef.update({ uses: firebase.firestore.FieldValue.increment(1) });
+                    
+                    showToast(`Success! +${reward} Coins`, "success");
+                    input.value = "";
+                    userData.usedPromoCodes.push(code); 
+                } else {
+                    processReferral(code);
+                }
+            } catch(e) {
+                console.error("Promo error:", e);
+                showToast("Network Error", "error");
+            }
+        }
+
+        // --- LEADERBOARD LOGIC ---
+        async function loadLeaderboard() {
+            const lbContainer = document.getElementById('leaderboard-list');
+            try {
+                const snap = await db.collection(`artifacts/${appId}/public/data/leaderboard`).get();
+                let users = [];
+                snap.forEach(doc => {
+                    users.push({ id: doc.id, ...doc.data() });
+                });
+                
+                users.sort((a, b) => (b.balance || 0) - (a.balance || 0));
+                
+                lbContainer.innerHTML = '';
+                if(users.length === 0) {
+                    lbContainer.innerHTML = '<div class="text-center text-slate-400 py-4">No data yet.</div>';
+                    return;
+                }
+
+                users.slice(0, 50).forEach((u, index) => {
+                    let rankIcon = `<span class="text-slate-400 font-bold w-6 text-center">#${index+1}</span>`;
+                    if(index === 0) rankIcon = `<i class="fas fa-crown text-yellow-400 text-xl w-6 text-center"></i>`;
+                    else if(index === 1) rankIcon = `<i class="fas fa-medal text-slate-300 text-lg w-6 text-center"></i>`;
+                    else if(index === 2) rankIcon = `<i class="fas fa-medal text-orange-400 text-lg w-6 text-center"></i>`;
+                    
+                    const isMe = currentUser && u.id === currentUser.uid;
+                    const bgClass = isMe ? 'bg-indigo-500/20 border-indigo-500/50' : 'bg-slate-800/40 border-slate-700';
+
+                    lbContainer.innerHTML += `
+                        <div class="p-3 rounded-xl flex justify-between items-center border ${bgClass} mb-2">
+                            <div class="flex items-center gap-3">
+                                ${rankIcon}
+                                <img src="${u.avatar || 'https://ui-avatars.com/api/?name='+u.name+'&background=random'}" class="w-8 h-8 rounded-full">
+                                <span class="font-bold text-white text-sm">${u.name.substring(0, 12)}</span>
+                            </div>
+                            <span class="font-bold font-tech text-yellow-400">${(u.balance || 0).toLocaleString()}</span>
+                        </div>
+                    `;
+                });
+            } catch(e) {
+                console.error("Leaderboard error", e);
+                lbContainer.innerHTML = '<div class="text-center text-red-400 py-4">Failed to load ranks (Permission Denied).</div>';
+            }
+        }
+
+        // --- REFERRAL LOGIC ---
+        async function processReferral(code) {
+            if(!code) return; code = code.trim().toUpperCase();
+            if(userData.referredBy || code === userData.referralCode) return;
+            try {
+                const refCodeDoc = await db.collection(`artifacts/${appId}/public/data/referralCodes`).doc(code).get();
+                if(!refCodeDoc.exists) return;
+                
+                const userRef = db.collection(`artifacts/${appId}/users/${currentUser.uid}/profile`).doc('main');
+                await userRef.update({
+                    balance: firebase.firestore.FieldValue.increment(1000), 
+                    totalEarned: firebase.firestore.FieldValue.increment(1000),
+                    referredBy: code
+                });
+                showToast("Welcome Bonus: +1000 Coins!", "success");
+                
+                const referrerId = refCodeDoc.data().userId;
+                const referrerRef = db.collection(`artifacts/${appId}/users/${referrerId}/profile`).doc('main');
+                try {
+                    await referrerRef.update({
+                        balance: firebase.firestore.FieldValue.increment(500),
+                        totalEarned: firebase.firestore.FieldValue.increment(500),
+                        totalRefers: firebase.firestore.FieldValue.increment(1)
+                    });
+                } catch(err) { console.warn("Referrer update failed", err); }
+                sessionStorage.removeItem('refCode');
+            } catch(e) { console.log("Referral Error", e); }
+        }
+
+        function shareOnTelegram() {
+            const botLink = `https://t.me/Tap2Earn_bot?startapp=${userData.referralCode}`;
+            const text = `TAP TO EARN 🔥\nPlay, Tap and Earn Real Money!\n\nUse my link to get 1000 Coins Bonus:\n${botLink}`;
+            const url = `https://t.me/share/url?url=${encodeURIComponent(botLink)}&text=${encodeURIComponent(text)}`;
+            window.open(url, '_blank');
+        }
+
+        function copyRefCode() { 
+            navigator.clipboard.writeText(userData.referralCode); 
+            showToast("Invite Code Copied!", "success"); 
+        }
+
+        // --- WITHDRAW LOGIC ---
+        async function handleWithdraw(e) {
+            e.preventDefault(); 
+            const m = document.getElementById('withdraw-method').value;
+            const d = document.getElementById('withdraw-details').value.trim();
+            const a = parseInt(document.getElementById('withdraw-amount').value);
+            
+            if (!m) return showToast("Select Payment Method", "error");
+            if (a > userData.balance) return showToast("Insufficient Coins!", "error");
+            if (a < 1000) return showToast("Min withdraw 1000 coins", "error");
+            
+            try {
+                const ref = db.collection(`artifacts/${appId}/users/${currentUser.uid}/profile`).doc('main');
+                if(pendingCoinsToSync > 0) {
+                    const temp = pendingCoinsToSync; pendingCoinsToSync = 0;
+                    await ref.update({ balance: firebase.firestore.FieldValue.increment(temp), totalEarned: firebase.firestore.FieldValue.increment(temp) });
+                    userData.balance += temp;
+                }
+
+                await db.runTransaction(async (t) => { 
+                    const doc = await t.get(ref); 
+                    t.update(ref, { balance: (doc.data().balance || 0) - a }); 
+                });
+                
+                await db.collection(`artifacts/${appId}/public/data/withdrawals`).add({ 
+                    userId: currentUser.uid, 
+                    userName: userData.firstName, 
+                    amount: Number(a), 
+                    method: m, 
+                    details: d, 
+                    status: 'pending', 
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp() 
+                });
+                
+                document.getElementById('payment-success-modal').classList.remove('hidden');
+                document.getElementById('payment-success-modal').classList.add('flex');
+                e.target.reset();
+                loadHistory();
+            } catch (err) { showToast("Error processing request", "error"); }
+        }
+
+        function loadHistory() {
+            if(!currentUser) return;
+            db.collection(`artifacts/${appId}/public/data/withdrawals`)
+              .where("userId", "==", currentUser.uid)
+              .onSnapshot(s => {
+                const c = document.getElementById('tx-history'); c.innerHTML = ''; 
+                let docs = []; 
+                s.forEach(doc => docs.push({ id: doc.id, ...doc.data() }));
+                
+                if (docs.length === 0) return c.innerHTML = '<div class="text-center py-6 text-slate-500 text-xs border border-dashed border-slate-700 rounded-xl">No transactions yet.</div>';
+                
+                docs.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+                docs.slice(0, 20).forEach(d => { 
+                    const col = d.status === 'paid' ? 'text-green-400' : (d.status === 'rejected' ? 'text-red-400' : 'text-yellow-400'); 
+                    c.innerHTML += `<div class="glass-card p-3 rounded-xl flex justify-between items-center mb-2"><div><p class="font-bold text-sm text-white">${d.method}</p><p class="text-[10px] text-slate-400">${d.details}</p></div><div class="text-right"><p class="font-bold text-white text-sm">-${d.amount}</p><p class="text-[10px] ${col} uppercase font-bold">${d.status}</p></div></div>`; 
+                });
+            });
+        }
+
+        // --- UTILS ---
+        function updateHeader() {
+            if (!userData) return;
+            const bal = Math.floor(userData.balance || 0).toLocaleString();
+            document.getElementById('header-balance').innerText = bal;
+            document.getElementById('wallet-balance').innerText = bal;
+            document.getElementById('dash-balance').innerText = bal;
+            document.getElementById('lb-my-score').innerText = bal;
+            
+            document.getElementById('total-refers-display').innerText = userData.totalRefers || 0;
+            document.getElementById('total-refers-earned').innerText = ((userData.totalRefers || 0) * 500).toLocaleString();
+            document.getElementById('my-ref-code').innerText = userData.referralCode || '...';
+        }
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page-section').forEach(el => el.classList.add('hidden'));
+            document.getElementById(pageId).classList.remove('hidden');
+            
+            document.querySelectorAll('.nav-item').forEach(el => {
+                el.classList.remove('text-yellow-400', 'active'); 
+                el.classList.add('text-slate-500');
+            });
+            const tapNav = document.getElementById('nav-tap');
+            tapNav.classList.remove('from-yellow-400', 'to-orange-400');
+            tapNav.classList.add('from-yellow-500', 'to-orange-600');
+
+            const navId = 'nav-' + pageId.replace('-page', '');
+            const navEl = document.getElementById(navId);
+            if(navEl) {
+                if(navId === 'nav-tap') {
+                    navEl.classList.remove('from-yellow-500', 'to-orange-600');
+                    navEl.classList.add('from-yellow-400', 'to-orange-400');
+                } else {
+                    navEl.classList.add('text-yellow-400'); 
+                    navEl.classList.remove('text-slate-500');
+                }
+            }
+
+            if(pageId === 'leaderboard-page') loadLeaderboard();
+            if(pageId === 'wallet-page') loadHistory();
+            if(pageId === 'home-page') checkDailyBonusStatus();
+        }
+
+        function showToast(msg, type) {
+            const c = document.getElementById('toast-container'), t = document.createElement('div');
+            t.className = `${type === 'success' ? 'bg-green-500' : (type === 'error' ? 'bg-red-500' : 'bg-blue-500')} text-white text-xs font-bold px-4 py-3 rounded-full shadow-lg flex items-center gap-2 animate-float-up z-[101] border border-white/20`;
+            t.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check' : (type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle')}"></i> ${msg}`; 
+            c.appendChild(t); setTimeout(() => t.remove(), 2500);
+        }
+    </script>
+</body>
+</html>
